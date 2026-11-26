@@ -15,7 +15,18 @@ ROOT = Path(__file__).resolve().parent
 OUTPUT_FILE = ROOT / "data" / "generated.json"
 MAX_BODY_BYTES = 16_384
 TEXT_PATTERN = re.compile(r"^[\w\s&.,()/'’:+#-]+$", re.UNICODE)
-STATIC_FILES = {"index.html", "styles.css", "app.js", "modularLogo.png"}
+STATIC_FILES = {"index.html", "styles.css", "app.js", "api-config.js", "modularLogo.png"}
+DEFAULT_CORS_ORIGINS = {
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+    "https://joachim2018.github.io",
+}
+
+
+def allowed_cors_origins() -> set[str]:
+    configured = os.environ.get("CORS_ALLOWED_ORIGINS")
+    origins = configured.split(",") if configured else DEFAULT_CORS_ORIGINS
+    return {origin.strip().rstrip("/") for origin in origins if origin.strip()}
 
 
 def load_env() -> None:
@@ -220,6 +231,12 @@ class ModularHandler(BaseHTTPRequestHandler):
     def log_message(self, format_string: str, *args: object) -> None:
         print(f"{self.address_string()} - {format_string % args}")
 
+    def send_cors_headers(self) -> None:
+        origin = self.headers.get("Origin", "").rstrip("/")
+        if origin and origin in allowed_cors_origins():
+            self.send_header("Access-Control-Allow-Origin", origin)
+            self.send_header("Vary", "Origin")
+
     def send_json(self, status: int, payload: dict) -> None:
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
@@ -227,8 +244,25 @@ class ModularHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_cors_headers()
         self.end_headers()
         self.wfile.write(body)
+
+    def do_OPTIONS(self) -> None:
+        if not urllib.parse.urlparse(self.path).path.startswith("/api/"):
+            self.send_json(404, {"error": "Route not found."})
+            return
+        origin = self.headers.get("Origin", "").rstrip("/")
+        if origin and origin not in allowed_cors_origins():
+            self.send_json(403, {"error": "Origin is not allowed."})
+            return
+        self.send_response(204)
+        self.send_cors_headers()
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Max-Age", "600")
+        self.send_header("Content-Length", "0")
+        self.end_headers()
 
     def read_json(self) -> object:
         try:
@@ -252,6 +286,9 @@ class ModularHandler(BaseHTTPRequestHandler):
             })
             return
         if parsed.path == "/api/output":
+            if self.client_address[0] not in {"127.0.0.1", "::1"}:
+                self.send_json(404, {"error": "No saved learning plan."})
+                return
             if not OUTPUT_FILE.is_file():
                 self.send_json(404, {"error": "No saved learning plan yet."})
                 return

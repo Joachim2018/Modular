@@ -1,5 +1,24 @@
 "use strict";
 
+const apiBaseUrl = typeof window.MODULAR_API_BASE_URL === "string"
+  ? window.MODULAR_API_BASE_URL.trim().replace(/\/+$/, "")
+  : "";
+const localApiHosts = new Set(["localhost", "127.0.0.1"]);
+
+function apiUrl(path) {
+  return `${apiBaseUrl}${path}`;
+}
+
+function hasApiTarget() {
+  return Boolean(apiBaseUrl) || localApiHosts.has(window.location.hostname);
+}
+
+function fetchApi(path, options = {}, timeout = 45000) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
+  return fetch(apiUrl(path), { ...options, signal: controller.signal }).finally(() => clearTimeout(timeoutId));
+}
+
 const form = document.querySelector("#planForm");
 const courseInput = document.querySelector("#course");
 const modulesInput = document.querySelector("#modules");
@@ -45,7 +64,7 @@ function setAlert(element, message, visible = true) {
 async function readApiJson(response) {
   const contentType = response.headers.get("content-type") || "";
   if (!contentType.toLowerCase().includes("application/json")) {
-    throw new Error("The server returned a web page instead of API data. Start with `python server.py`, open http://127.0.0.1:8000, and refresh.");
+    throw new Error("The API returned a web page instead of JSON. Check the API URL in api-config.js and confirm the Python service is running.");
   }
   try {
     return await response.json();
@@ -152,34 +171,32 @@ form.addEventListener("submit", async (event) => {
   setAlert(formAlert, validationMessage, Boolean(validationMessage));
   courseInput.classList.toggle("is-invalid", !course || course.length > 100 || !allowedText.test(course));
   if (validationMessage) return;
+  if (!hasApiTarget()) {
+    setAlert(formAlert, "The hosted API URL is not configured. Set MODULAR_API_BASE_URL in api-config.js and redeploy the site.");
+    return;
+  }
 
   setLoading(true);
   try {
-    const statusResponse = await fetch("/api/status");
+    generateButton.querySelector(".button-label").textContent = "Connecting to API…";
+    const statusResponse = await fetchApi("/api/status", {}, 120000);
     const providerStatus = await readApiJson(statusResponse);
     if (!statusResponse.ok || !providerStatus.openai) {
-      throw new Error("OpenAI is not configured in the running server. Add OPENAI_API_KEY to the project’s .env file and restart the server.");
+      throw new Error("OpenAI is not configured on the API service. Add OPENAI_API_KEY to the Render environment and redeploy.");
     }
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 45000);
-    let response;
-    try {
-      response = await fetch("/api/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ course, modules }),
-        signal: controller.signal
-      });
-    } finally {
-      clearTimeout(timeoutId);
-    }
+    generateButton.querySelector(".button-label").textContent = "Building your guide…";
+    const response = await fetchApi("/api/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ course, modules })
+    });
     const payload = await readApiJson(response);
     if (!response.ok) throw new Error(payload.error || "The learning plan could not be generated.");
     renderPlan(payload);
   } catch (error) {
     const message = error.name === "AbortError"
-      ? "Generating the plan timed out after 45 seconds. Check your API connection and try again."
+      ? "The API request timed out. A free-tier API service may still be starting; wait a moment and try again."
       : error.message || "Unable to connect to Modular. Check the server and try again.";
     setAlert(formAlert, message);
   } finally {
@@ -213,10 +230,14 @@ async function findOpportunities() {
     return;
   }
   linkedinSearchLink.href = `https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(course)}`;
+  if (!hasApiTarget()) {
+    setAlert(opportunityAlert, "The hosted API URL is not configured. Set MODULAR_API_BASE_URL in api-config.js to enable job search.");
+    return;
+  }
   setAlert(opportunityAlert, "Searching configured job sources…");
   opportunityCards.replaceChildren();
   try {
-    const response = await fetch(`/api/jobs?course=${encodeURIComponent(course)}`);
+    const response = await fetchApi(`/api/jobs?course=${encodeURIComponent(course)}`);
     const payload = await readApiJson(response);
     if (!response.ok) throw new Error(payload.error || "Job listings are not available.");
     if (!payload.jobs.length) {
@@ -261,8 +282,9 @@ opportunityCourse.addEventListener("input", () => {
 });
 
 async function restoreLastPlan() {
+  if (apiBaseUrl) return;
   try {
-    const response = await fetch("/api/output");
+    const response = await fetchApi("/api/output");
     if (response.status === 404) return;
     if (!response.ok) throw new Error("The saved learning plan could not be loaded.");
     const plan = await response.json();

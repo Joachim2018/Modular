@@ -16,6 +16,17 @@ A responsive course-planning website with AI-generated learning resources, a per
 
 The app validates course and module input in the browser and again on the server. API credentials are only read by the server; do not put secrets in `app.js` or `index.html`. Generated plans are saved to `data/generated.json` and can also be downloaded from the page. `.env` and generated output are excluded from Git.
 
+## Deploy with GitHub Pages and Render
+
+GitHub Pages serves the static frontend; it cannot run the Python API. This project points its GitHub Pages frontend at `https://modular-b0ay.onrender.com` from `api-config.js`. Deploy `server.py` as a Render Web Service with start command `python server.py`, and configure these Render environment variables:
+
+- `HOST=0.0.0.0`
+- `OPENAI_API_KEY` and `OPENAI_MODEL`
+- `JOBSPIPE_API_URL=https://api.jobspipe.dev` and `JOBSPIPE_API_KEY`
+- `CORS_ALLOWED_ORIGINS=https://joachim2018.github.io`
+
+Keep all API keys in the Render dashboard, never in the GitHub Pages source. If the Render service URL changes, update the GitHub Pages entry in `api-config.js`. The first request to a free Render service may take longer while the service wakes up.
+
 ## Provider setup
 
 ### OpenAI
