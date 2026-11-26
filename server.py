@@ -159,18 +159,24 @@ def generate_plan(course: str, modules: list[str]) -> dict:
         "never invent claims that a link was checked. Keep results suitable for students."
     )
     response = call_json_api(
-        "https://api.openai.com/v1/chat/completions",
-        {
-            "model": os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
-            "response_format": {"type": "json_object"},
-            "messages": [
-                {"role": "system", "content": prompt},
-                {"role": "user", "content": json.dumps({"course": course, "modules": modules}, ensure_ascii=False)},
-            ],
-            "temperature": 0.4,
-        },
-        {"Authorization": f"Bearer {api_key}"},
-    )
+    "https://api.openai.com/v1/chat/completions",
+    {
+        "model": os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
+        "response_format": {"type": "json_object"},
+        "messages": [
+            {"role": "system", "content": prompt},
+            {
+                "role": "user",
+                "content": json.dumps(
+                    {"course": course, "modules": modules},
+                    ensure_ascii=False
+                )
+            },
+        ],
+        "temperature": 0.4,
+    },
+    {"Authorization": f"Bearer {api_key}"},
+)
     content = extract_openai_content(response)
     try:
         raw_plan = json.loads(content)
@@ -389,7 +395,7 @@ class ModularHandler(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     load_env()
-    host = os.environ.get("HOST", "127.0.0.1")
+    host = os.environ.get("HOST", "0.0.0.0")
     port = int(os.environ.get("PORT", "8000"))
     server = ThreadingHTTPServer((host, port), ModularHandler)
     print(f"Modular is running at http://{host}:{port}")
