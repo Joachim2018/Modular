@@ -1,5 +1,7 @@
 "use strict";
 
-window.MODULAR_API_BASE_URL = window.location.hostname === "joachim2018.github.io"
+const hostedApiHosts = new Set(["joachim2018.github.io", "modular-b0ay.onrender.com"]);
+
+window.MODULAR_API_BASE_URL = hostedApiHosts.has(window.location.hostname)
   ? "https://modular-b0ay.onrender.com"
   : "";
