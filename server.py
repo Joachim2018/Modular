@@ -432,7 +432,7 @@ class ModularHandler(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     load_env()
-    host = os.environ.get("HOST", "0.0.0.0")
+    host = "0.0.0.0" if os.environ.get("RENDER") == "true" else os.environ.get("HOST", "0.0.0.0")
     port = int(os.environ.get("PORT", "8000"))
     server = ThreadingHTTPServer((host, port), ModularHandler)
     print(f"Modular is running at http://{host}:{port}")

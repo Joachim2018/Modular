@@ -18,9 +18,8 @@ The app validates course and module input in the browser and again on the server
 
 ## Deploy with GitHub Pages and Render
 
-GitHub Pages serves the static frontend; it cannot run the Python API. This project points its GitHub Pages frontend at `https://modular-b0ay.onrender.com` from `api-config.js`. Deploy `server.py` as a Render Web Service with start command `python server.py`, and configure these Render environment variables:
+GitHub Pages serves the static frontend; it cannot run the Python API. This project points its GitHub Pages frontend at `https://modular-b0ay.onrender.com` from `api-config.js`. Deploy `server.py` as a Render Web Service with start command `python server.py`. The server binds to `0.0.0.0` on Render and uses Render's `PORT` value automatically. Configure these Render environment variables:
 
-- `HOST=0.0.0.0`
 - `OPENAI_API_KEY` and `OPENAI_MODEL`
 - `JOBSPIPE_API_URL=https://api.jobspipe.dev` and `JOBSPIPE_API_KEY`
 - `CORS_ALLOWED_ORIGINS=https://joachim2018.github.io`
